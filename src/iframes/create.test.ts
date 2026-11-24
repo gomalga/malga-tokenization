@@ -1,0 +1,69 @@
+import { CSSClasses } from 'src/enums'
+import { create } from './create'
+import { camelToKebabCase } from '../utils/parsedString'
+import { configurationsSDK } from 'tests/mocks'
+import { HOSTED_FIELDS_VERSION, URL_HOSTED_FIELD_PROD } from 'src/constants'
+
+describe('create', () => {
+  function testCreatingIframe(field: string) {
+    test(`should be possible to create an iframe with field ${field}`, () => {
+      const type = camelToKebabCase(field)
+      const parentNode = document.createElement('div')
+      parentNode.id = type
+      document.body.appendChild(parentNode)
+
+      create((configurationsSDK.options?.config?.fields as any)[field])
+
+      const iframe = document.querySelector(`iframe[name=${type}]`)
+
+      expect(iframe).toBeInTheDocument()
+      expect(iframe).toHaveAttribute(
+        'src',
+        `${URL_HOSTED_FIELD_PROD}/${HOSTED_FIELDS_VERSION}/index.html`,
+      )
+      expect(iframe).toHaveAttribute('name', type)
+      expect(parentNode.classList.contains(CSSClasses.Default)).toBe(true)
+      expect(parentNode.getAttribute('id')).toBe(type)
+    })
+  }
+
+  const fields = [
+    'cardNumber',
+    'cardHolderName',
+    'cardExpirationDate',
+    'cardCvv',
+  ]
+  fields.forEach(testCreatingIframe)
+
+  test.each(['card.number', '1-card-number', 'card:number', 'card number'])(
+    'should create the iframe in a container that is not a valid CSS selector: %s',
+    (container) => {
+      const parentNode = document.createElement('div')
+      parentNode.id = container
+      document.body.appendChild(parentNode)
+
+      expect(() => create({ container })).not.toThrow()
+
+      const iframe = parentNode.querySelector('iframe')
+      expect(iframe).not.toBeNull()
+      expect(iframe?.getAttribute('name')).toBe(container)
+
+      parentNode.remove()
+    },
+  )
+
+  test('should create the iframe when the container is mounted later', async () => {
+    const container = 'card.number-later'
+
+    create({ container })
+
+    const parentNode = document.createElement('div')
+    parentNode.id = container
+    document.body.appendChild(parentNode)
+
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(parentNode.querySelector('iframe')).not.toBeNull()
+    parentNode.remove()
+  })
+})
